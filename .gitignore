@@ -1,0 +1,13 @@
+bin/
+obj/
+logs/
+*.user
+*.suo
+.vs/
+.idea/
+*.swp
+# local config with keys never belongs in the repo
+config.json
+# the agent's own state never lives in the repo
+.vanity-agent/memory.json
+.vanity-agent/usage.json

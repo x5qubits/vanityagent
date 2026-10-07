@@ -1,0 +1,51 @@
+{
+  "Profiles": [
+    {
+      "Name": "anthropic",
+      "Provider": "anthropic",
+      "Enabled": true,
+      "ApiKeys": [ "sk-ant-api03-..." ],
+      "Models": [ "claude-sonnet-5-5", "claude-haiku-4-5-20251001" ],
+      "Layers": [ "any" ],
+      "MaxTokens": 16000
+    },
+    {
+      "Name": "openai-key",
+      "Provider": "openai",
+      "Enabled": true,
+      "ApiKeys": [ "sk-..." ],
+      "Models": [ "gpt-5.5" ],
+      "Layers": [ "any" ]
+    },
+    {
+      "Name": "chatgpt",
+      "Provider": "openai",
+      "Enabled": true,
+      "ApiKeys": [ "oauth" ],
+      "Models": [ "gpt-5.5" ],
+      "Layers": [ "any" ],
+      "OAuthProvider": "openai",
+      "OAuthAccessToken": "filled in by /login openai",
+      "OAuthRefreshToken": "filled in by /login openai",
+      "OAuthExpiresAt": 0
+    },
+    {
+      "Name": "gemini",
+      "Provider": "gemini",
+      "Enabled": true,
+      "ApiKeys": [ "AIza..." ],
+      "Models": [ "gemini-3.1-pro" ],
+      "Layers": [ "any" ]
+    },
+    {
+      "Name": "local",
+      "Provider": "ollama",
+      "Enabled": false,
+      "BaseUrl": "http://localhost:11434",
+      "ApiKeys": [],
+      "Models": [ "qwen3:32b" ],
+      "Layers": [ "any" ],
+      "NumCtx": 32768
+    }
+  ]
+}

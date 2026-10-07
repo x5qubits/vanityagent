@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>VanityAgent</RootNamespace>
+    <AssemblyName>vanity-agent</AssemblyName>
+    <Version>1.0.0</Version>
+    <LangVersion>latest</LangVersion>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- The copied runtime is annotated for nullable but a few paths rely on runtime checks; keep the build quiet. -->
+    <NoWarn>$(NoWarn);CS1591;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8619;CS8620;CS0168;CS0219;CS1998</NoWarn>
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PDF text extraction for read_file (pure managed, no native dependency). -->
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="config.example.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
