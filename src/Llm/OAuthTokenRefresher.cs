@@ -175,6 +175,8 @@ public static class OAuthTokenRefresher
             if (!ok)
             {
                 Console.WriteLine($"[llm-oauth] refresh failed for '{p.Name}': {body[..Math.Min(200, body.Length)]}");
+                if (body.Contains("client_secret", StringComparison.OrdinalIgnoreCase))
+                    Console.WriteLine("[llm-oauth] Google needs the Antigravity client secret to refresh this login. Store it once: /set GoogleClientSecret (or the VANITY_AGENT_GOOGLE_SECRET environment variable), then try again.");
                 return false;
             }
 
