@@ -319,9 +319,10 @@ namespace VanityAgent.Llm
                     using var r = await http.SendAsync(req, ct).ConfigureAwait(false);
                     var body = await r.Content.ReadAsStringAsync().ConfigureAwait(false);
                     if (r.IsSuccessStatusCode) { raw = body; hostUsed = baseUrl; break; }
+                    VanityAgent.Infra.Log.Warn($"[usage] {baseUrl} retrieveUserQuotaSummary -> HTTP {(int)r.StatusCode}: {Trim(body)[..Math.Min(600, Trim(body).Length)]}");
                     if (includeRaw && raw is null) raw = "HTTP " + (int)r.StatusCode + ": " + Trim(body);
                 }
-                catch { }
+                catch (Exception ex) { VanityAgent.Infra.Log.Warn("[usage] " + baseUrl + ": " + ex.Message); }
             }
             if (raw is null) return null;
             var usage = ParseAntigravityQuota(raw, includeRaw);

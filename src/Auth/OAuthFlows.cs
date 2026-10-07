@@ -272,7 +272,7 @@ public static class OAuthFlows
         var email = JwtClaim(Str(r, "id_token"), "email");
         var profile = new AiProfile
         {
-            Name = profileName, Provider = "Antigravity", Enabled = true,
+            Name = profileName, Provider = "Antigravity", Enabled = true, DisableThinking = true, JsonMode = true,
             OAuthProvider = "antigravity", OAuthClient = client,
             OAuthAccessToken = Str(r, "access_token"), OAuthRefreshToken = Str(r, "refresh_token"),
             OAuthExpiresAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + ReadLong(r, "expires_in", 3600),
@@ -359,12 +359,12 @@ public static class OAuthFlows
         return isToken
             ? new AiProfile
             {
-                Name = profileName, Provider = "Anthropic", Enabled = true, OAuthProvider = "anthropic",
+                Name = profileName, Provider = "Anthropic", Enabled = true, DisableThinking = true, JsonMode = true, OAuthProvider = "anthropic",
                 OAuthAccessToken = secret, ApiKeys = ["oauth"], Models = OAuthConfig.DefaultModels("anthropic"), Layers = ["any"],
             }
             : new AiProfile
             {
-                Name = profileName, Provider = "Anthropic", Enabled = true,
+                Name = profileName, Provider = "Anthropic", Enabled = true, DisableThinking = true, JsonMode = true,
                 ApiKeys = [secret], Models = OAuthConfig.DefaultModels("anthropic"), Layers = ["any"],
             };
     }
@@ -379,7 +379,7 @@ public static class OAuthFlows
         if (string.IsNullOrWhiteSpace(access)) throw new InvalidOperationException("The token response had no access_token.");
         return new AiProfile
         {
-            Name = profileName, Provider = provider, Enabled = true,
+            Name = profileName, Provider = provider, Enabled = true, DisableThinking = true, JsonMode = true,
             OAuthProvider = oauthProvider,
             OAuthAccessToken = access,
             OAuthRefreshToken = Str(root, "refresh_token"),

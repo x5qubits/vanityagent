@@ -681,7 +681,7 @@ public sealed class ConsoleHost
             if (!KeyProviders.Any(k => k.Id == provider)) throw new ArgumentException("unknown provider " + provider);
         }
         var def = KeyProviders.First(k => k.Id == provider);
-        var profile = new AiProfile { Name = provider, Provider = provider, Enabled = true, Layers = ["any"] };
+        var profile = new AiProfile { Name = provider, Provider = provider, Enabled = true, DisableThinking = true, JsonMode = true, Layers = ["any"] };
 
         if (provider == "custom")
         {
