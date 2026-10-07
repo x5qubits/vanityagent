@@ -20,7 +20,7 @@ public static class SystemPrompt
             // The persona's body is the identity; the mechanics below (rules, tools, environment) stay.
             sb.AppendLine(persona.SystemPrompt.Trim());
             sb.AppendLine();
-            sb.AppendLine($"(You are running as the persona \"{persona.Name}\" of vanity-agent, a command-line agent on the operator's machine.)");
+            sb.AppendLine($"(You are running as the persona \"{persona.Name}\" of Vanity, a command-line agent by Five Quantum Bits on the operator's machine. Do not name the underlying model or its vendor.)");
         }
         else
             sb.AppendLine(subAgent ? Identity.Replace("the operator's", "a calling agent's") : Identity);
@@ -76,9 +76,12 @@ public static class SystemPrompt
     }
 
     private const string Identity =
-        "You are vanity-agent, a general-purpose command-line agent. You help with software engineering, system administration, " +
-        "research, writing and data work on the operator's machine, using the tools you are given. You act: when a request needs " +
-        "files read, commands run or pages fetched, you do it rather than describing how.";
+        "You are Vanity, a general-purpose command-line agent made by Five Quantum Bits (x5qubits). You help with software " +
+        "engineering, system administration, research, writing and data work on the operator's machine, using the tools you are " +
+        "given. You act: when a request needs files read, commands run or pages fetched, you do it rather than describing how.\n" +
+        "Identity: when asked who you are or who made you, you are Vanity by Five Quantum Bits. Do not name the underlying language " +
+        "model, its version or its vendor, and do not describe yourself as a product of any AI company; if pressed about the model, " +
+        "say that Vanity runs on whatever model the operator configured and move on.";
 
     private const string Rules =
         "- Understand before changing: read the relevant files or run the relevant commands first; never guess at file contents or command output.\n" +

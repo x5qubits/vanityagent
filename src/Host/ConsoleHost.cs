@@ -281,8 +281,12 @@ public sealed class ConsoleHost
 
         var sessionId = Guid.NewGuid().ToString("N");
         var maxTurns = _persona is { MaxTurns: > 0 } ? _persona.MaxTurns : _o.MaxTurns;
-        _loop = new AgentLoop(new LayerClient(this), _tools, "", ConsoleEvents(depth: 0), _usage, maxTurns, "main", sessionId);
+        _loop = new AgentLoop(new LayerClient(this), _tools, "", ConsoleEvents(depth: 0), _usage, maxTurns, "main", sessionId, deferredTools: DeferredByDefault);
     }
+
+    /// <summary>Tools whose schemas cost thousands of prompt tokens and are rarely needed: listed in one line each and
+    /// loaded on demand with load_tools (see DeferredTools). Everything else is in the schema on every call.</summary>
+    private static readonly string[] DeferredByDefault = ["computer", "page_view", "image_gen"];
 
     private ToolRegistry BuildTools(bool includeAgent, PersonaDefinition? persona)
     {
@@ -346,7 +350,7 @@ public sealed class ConsoleHost
         var tools = BuildTools(includeAgent: false, persona);
         var id = "sub-" + Guid.NewGuid().ToString("N")[..6];
         var maxTurns = persona is { MaxTurns: > 0 } ? persona.MaxTurns : Math.Max(10, _o.MaxTurns / 2);
-        var loop = new AgentLoop(new LayerClient(this), tools, "", ConsoleEvents(depth: 1), _usage, maxTurns, id);
+        var loop = new AgentLoop(new LayerClient(this), tools, "", ConsoleEvents(depth: 1), _usage, maxTurns, id, deferredTools: DeferredByDefault);
         var prevDepth = AgentToolContext.Depth;
         AgentToolContext.Depth = 1;
         try
@@ -977,7 +981,7 @@ public sealed class ConsoleHost
         _tools = BuildTools(includeAgent: true, _persona);
         var keep = _loop.History.ToList();
         var maxTurns = _persona is { MaxTurns: > 0 } ? _persona.MaxTurns : _o.MaxTurns;
-        _loop = new AgentLoop(new LayerClient(this), _tools, "", ConsoleEvents(depth: 0), _usage, maxTurns, "main", Guid.NewGuid().ToString("N"), keep);
+        _loop = new AgentLoop(new LayerClient(this), _tools, "", ConsoleEvents(depth: 0), _usage, maxTurns, "main", Guid.NewGuid().ToString("N"), keep, DeferredByDefault);
         Dim(_persona is null ? "  [persona off: default agent]" : $"  [persona: {_persona.Name} · tools: {(_persona.Tools.Length > 0 ? string.Join(", ", _persona.Tools) : "all")}]");
     }
 

@@ -37,15 +37,18 @@ public sealed class AgentLoop
     public (int Prompt, int Completion, int Cached) LastTokenUsage { get; private set; }
     public string? LastModel { get; private set; }
 
+    private readonly DeferredTools _deferred;
+
     public AgentLoop(ILlmClient client, IToolRegistry tools, string systemPrompt, AgentEvents? events = null,
         UsageTracker? usage = null, int maxIterations = 60, string? agentId = null, string? sessionId = null,
-        IEnumerable<ConversationMessage>? history = null)
+        IEnumerable<ConversationMessage>? history = null, IEnumerable<string>? deferredTools = null)
     {
         _client = client; _tools = tools; SystemPrompt = systemPrompt; _events = events ?? new AgentEvents();
         _usage = usage; MaxIterations = Math.Max(1, maxIterations);
         AgentId = agentId ?? "main";
         _sessionId = sessionId ?? Guid.NewGuid().ToString("N");
         if (history is not null) _history.AddRange(history);   // a persona switch keeps the conversation
+        _deferred = new DeferredTools(tools.All, deferredTools ?? []);
     }
 
     private static readonly System.Text.RegularExpressions.Regex TextToolCall = new(
@@ -68,14 +71,18 @@ public sealed class AgentLoop
         int totalPrompt = 0, totalCompletion = 0, totalCached = 0;
         int emptyRetries = 0, textSlips = 0;
         int maxIter = MaxIterations;
-        var toolDefs = _tools.All;
 
         for (int iter = 1; iter <= maxIter; iter++)
         {
             _events.OnStep?.Invoke(iter, maxIter);
             LlmCallScope.SessionId.Value = _sessionId;
 
-            var response = await _client.CallAsync(SystemPrompt, _history, toolDefs, ct).ConfigureAwait(false);
+            // Deferred tools: their one-line catalog rides in the prompt, their schemas only once loaded.
+            var toolDefs = _deferred.Active();
+            var catalog = _deferred.CatalogBlock();
+            var systemPrompt = catalog.Length > 0 ? SystemPrompt + "\n\n---\n" + catalog : SystemPrompt;
+
+            var response = await _client.CallAsync(systemPrompt, _history, toolDefs, ct).ConfigureAwait(false);
 
             if (!string.IsNullOrEmpty(response.ProfileName) && !string.IsNullOrEmpty(response.ModelName))
             {
@@ -170,6 +177,13 @@ public sealed class AgentLoop
 
     private async Task<ToolResultRecord> ExecuteToolAsync(LlmToolCall tc, CancellationToken ct)
     {
+        if (_deferred.IsLoadCall(tc.Name))
+        {
+            _events.OnToolCall?.Invoke(tc.Name, ArgPreview(tc.Name, tc.ArgsJson));
+            var loaded = _deferred.HandleLoad(tc);
+            _events.OnToolResult?.Invoke(tc.Name, 0, loaded.Output.Length, loaded.IsError);
+            return loaded;
+        }
         if (!_tools.TryGet(tc.Name, out var tool) || tool is null)
         {
             Log.Warn($"[{AgentId}] tool not found: {tc.Name}");
@@ -216,6 +230,8 @@ public sealed class AgentLoop
             foreach (var key in new[] { "command", "file_path", "path", "pattern", "query", "url", "task", "action", "format" })
                 if (root.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String)
                     return Head(v.GetString() ?? "", 100);
+            if (root.TryGetProperty("names", out var names) && names.ValueKind == JsonValueKind.Array)
+                return string.Join(", ", names.EnumerateArray().Select(n => n.ToString()));
             if (root.TryGetProperty("files", out var files) && files.ValueKind == JsonValueKind.Array)
                 return $"{files.GetArrayLength()} file(s)";
             if (root.TryGetProperty("edits", out var edits) && edits.ValueKind == JsonValueKind.Array)
