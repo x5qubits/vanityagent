@@ -254,12 +254,18 @@ public static class OAuthFlows
         }
         else
         {
+            // Something was typed before the browser came back. Only a real code (or the redirected URL) counts; a
+            // stray Enter or a word typed while waiting is ignored and the login keeps waiting for the browser.
             var raw = (await pasted ?? "").Trim();
-            if (raw.Length == 0) code = await listener;
+            var ix = raw.IndexOf("code=", StringComparison.Ordinal);
+            var candidate = ix >= 0 ? Uri.UnescapeDataString(raw[(ix + 5)..].Split('&')[0]) : raw;
+            if (candidate.Length >= 20 && !candidate.Contains(' '))
+                code = candidate;
             else
             {
-                var ix = raw.IndexOf("code=", StringComparison.Ordinal);
-                code = ix >= 0 ? Uri.UnescapeDataString(raw[(ix + 5)..].Split('&')[0]) : raw;
+                if (raw.Length > 0) ui.Say("  That is not an authorization code; still waiting for the browser...");
+                code = await listener;
+                ui.Say("  Browser returned the authorization code.");
             }
         }
         cts.Cancel();

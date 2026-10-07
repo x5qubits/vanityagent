@@ -51,6 +51,13 @@ public sealed class ConsoleHost
 
     public static async Task<int> RunAsync(string[] args)
     {
+        // A crash must leave a trace: the exception goes to the log and to stderr in full before the process dies.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            try { Log.Error("UNHANDLED: " + e.ExceptionObject); Log.Flush(); } catch { }
+            try { Console.Error.WriteLine("fatal: " + e.ExceptionObject); } catch { }
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) => { try { Log.Error("UNOBSERVED: " + e.Exception); } catch { } e.SetObserved(); };
         try { Console.OutputEncoding = Encoding.UTF8; Console.InputEncoding = Encoding.UTF8; } catch { }
         var o = Parse(args);
         if (o.Help) { PrintUsage(); return 0; }
@@ -75,7 +82,7 @@ public sealed class ConsoleHost
                 await host.LoginAsync(o.Login, null, CancellationToken.None);
                 return 0;
             }
-            if (!await host.EnsureProfilesAsync()) return 2;
+            if (!await host.EnsureProfilesAsync()) { HoldWindow(); return 2; }
             host.Build();
             if (o.Usage) { await host.PrintUsageStatsAsync(CancellationToken.None); return 0; }
 
@@ -94,9 +101,26 @@ public sealed class ConsoleHost
         {
             Log.Error(ex);
             Console.Error.WriteLine("error: " + ex.Message);
+            Console.Error.WriteLine("details: " + AgentConfig.LogsDir);
+            HoldWindow();
             return 1;
         }
         finally { Log.Flush(); }
+    }
+
+    /// <summary>A window opened by double-clicking the exe closes the instant the process ends, taking the error
+    /// with it. When the console is interactive, wait for Enter before leaving on a failure.</summary>
+    private static void HoldWindow()
+    {
+        try
+        {
+            if (Console.IsInputRedirected || Console.IsOutputRedirected) return;
+            Console.ForegroundColor = ConsoleColor.DarkGray;
+            Console.Write("  Press Enter to close.");
+            Console.ResetColor();
+            Console.ReadLine();
+        }
+        catch { }
     }
 
     private static Options Parse(string[] args)
