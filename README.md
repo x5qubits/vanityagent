@@ -145,7 +145,7 @@ vanity-agent --sandbox --max-turns 20 "list the TODO comments"
 | `--max-turns <n>` | tool-call turns one request may take (default 60) |
 | `--sandbox` | confine the file tools to the working directory |
 | `--deny <path>` | a folder the agent must not touch (repeatable) |
-| `--no-memory` | neither load nor save project notes |
+| `--no-memory` | neither load nor save project notes (also turns the automatic analysis off) |
 | `--login <provider>` | sign in and exit |
 | `-v, --verbose` | echo the diagnostic log |
 
@@ -180,7 +180,7 @@ Ctrl+C stops the running task; at the prompt it exits.
 | Shell | a persistent `bash` session (Git Bash on Windows): state, exports and the working directory persist; timeouts, output capping, child-process cleanup |
 | Web | `web_fetch` turns a page into readable text with links and headings, downloads images and PDFs; `web_search` via a local headless Edge/Chrome, DuckDuckGo fallback; `page_view` screenshots any page or local HTML file and checks its layout |
 | Images and desktop | `image_gen` makes pictures with your OpenAI, ChatGPT or Antigravity account; `computer` takes screenshots and drives the mouse and keyboard for GUI-only tasks (Windows) |
-| Memory | project notes saved between sessions: the agent searches, saves and deletes them; you edit them with `/memory` |
+| Smart memory | after every turn that used tools, a background model call records what the steps proved (where things live, build and run commands and their results, what exists, the operator's stated preferences); each fact must cite a step, instructions and guesses are refused, duplicates skipped, contradicted automatic notes replaced, your own notes never touched. Notes are shown to the model on every turn, whole when few, filtered by relevance to the request when many |
 | Sub-agents | `agent` runs independent sub-tasks in parallel in fresh contexts, optionally as a persona, and reports back |
 | Skills and personas | markdown playbooks loaded on demand or pinned; roles with their own tools and turn budget |
 | Planning | `task_scratchpad` keeps the working plan of a long task |

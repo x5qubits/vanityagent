@@ -35,6 +35,10 @@ public sealed class AgentLoop
 
     /// <summary>Token usage accumulated across all model calls in the last SendAsync turn.</summary>
     public (int Prompt, int Completion, int Cached) LastTokenUsage { get; private set; }
+
+    /// <summary>Every tool call of the last turn with the start of its result, in call order: what the memory
+    /// analyzer reads when the turn ends.</summary>
+    public List<Memory.RunStep> LastSteps { get; } = new();
     public string? LastModel { get; private set; }
 
     private readonly DeferredTools _deferred;
@@ -61,6 +65,7 @@ public sealed class AgentLoop
         AgentToolContext.RunId = Guid.NewGuid().ToString("N");
 
         HistoryLifecycleManager.EnforceTokenBudget(_history);
+        LastSteps.Clear();
 
         var stamp = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
         var text = $"{userMessage}\n\n[Current Time: {stamp} UTC]";
@@ -130,6 +135,12 @@ public sealed class AgentLoop
 
             var tasks = response.ToolCalls.Select(tc => ExecuteToolAsync(tc, ct)).ToList();
             var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+            for (int i = 0; i < response.ToolCalls.Count && i < results.Length; i++)
+            {
+                var output = results[i].Output ?? "";
+                LastSteps.Add(new Memory.RunStep(LastSteps.Count + 1, response.ToolCalls[i].Name, response.ToolCalls[i].ArgsJson ?? "",
+                    output.Length > 1500 ? output[..1500] : output, results[i].IsError));
+            }
             var sanitized = results.Select(r => HistoryLifecycleManager.SanitizeToolResult(r)).ToList();
 
             // Budget line on the last result: the model sees how many turns remain and finishes in time.

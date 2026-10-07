@@ -23,6 +23,7 @@ public sealed class ConsoleHost
     private AgentLoop _loop = null!;
     private UsageTracker _usage = null!;
     private JsonFileMemoryStore _memory = null!;
+    private MemoryAutoSave? _autoSave;
     private CancellationTokenSource? _turnCts;
     private PromptLibrary _library = null!;
     private PersonaDefinition? _persona;
@@ -267,6 +268,8 @@ public sealed class ConsoleHost
         var project = PromptLibrary.HasProjectDir(_workspace) ? PromptLibrary.ProjectDir(_workspace) : AgentConfig.ProjectDir(_workspace);
         _usage  = new UsageTracker(Path.Combine(project, "usage.json"));
         _memory = new JsonFileMemoryStore(Path.Combine(project, "memory.json"));
+        // The smart memory: after every turn that used tools, a background model call records what the steps proved.
+        _autoSave = _o.NoMemory ? null : new MemoryAutoSave(_memory, SideCallAsync, line => Dim("  [" + line + "]"));
 
         _library = PromptLibrary.Load(_workspace);
         _personaName ??= _o.Persona;
@@ -356,9 +359,11 @@ public sealed class ConsoleHost
         try
         {
             var (active, loadable) = SkillsFor(persona, includePinned: false);
-            loop.SystemPrompt = SystemPrompt.Build(_workspace, ActiveModel(), tools.All.Select(t => t.Name), await MemoryBlockAsync(ct),
+            loop.SystemPrompt = SystemPrompt.Build(_workspace, ActiveModel(), tools.All.Select(t => t.Name), await MemoryBlockAsync(task, ct),
                 subAgent: true, persona: persona, activeSkills: active, loadableSkills: loadable);
-            return await loop.SendAsync(task, ct);
+            var result = await loop.SendAsync(task, ct);
+            _autoSave?.Handle(task, result, loop.LastSteps.ToList(), _workspace);
+            return result;
         }
         finally { AgentToolContext.Depth = prevDepth; }
     }
@@ -424,25 +429,31 @@ public sealed class ConsoleHost
 
     private AiProfile? ActiveProfile() => _opts.Profiles.FirstOrDefault(Usable);
 
-    private async Task<string?> MemoryBlockAsync(CancellationToken ct)
+    /// <summary>The memory block for this request: the notes whole when the store is small, a model-filtered
+    /// selection when it is large. Waits briefly for the previous turn's analysis so its facts are included.</summary>
+    private async Task<string?> MemoryBlockAsync(string? task, CancellationToken ct)
     {
         if (_o.NoMemory) return null;
-        var notes = await _memory.ListAsync(ct);
-        if (notes.Count == 0) return null;
-        var sb = new StringBuilder();
-        sb.AppendLine("# Project memory");
-        sb.AppendLine("Notes saved in earlier sessions of this workspace (the memory tool searches, saves and deletes them):");
-        int budget = 8000;
-        foreach (var n in notes)
+        await MemoryAutoSave.WhenSavedAsync(_memory, TimeSpan.FromSeconds(4), ct);
+        var block = await PromptMemory.BlockAsync(_memory, task, SideCallAsync, ct);
+        return block.Length == 0 ? null : block;
+    }
+
+    /// <summary>A short side call on the configured provider (the memory analyzer, judge and filter): no tools, a
+    /// hard output cap, the same failover as every other call.</summary>
+    private async Task<string> SideCallAsync(string system, string user, CancellationToken ct)
+    {
+        var before = LlmCallScope.MaxOutputTokens.Value;
+        LlmCallScope.MaxOutputTokens.Value = 2500;
+        var prevDelta = LlmCallScope.OnDelta.Value;
+        LlmCallScope.OnDelta.Value = null;   // never stream a side call's reasoning to the console
+        try
         {
-            var title = n.Metadata.TryGetValue("title", out var t) && t.Length > 0 ? t : n.Content.Split('\n')[0];
-            var body = n.Content.Trim();
-            if (body.Length > 600) body = body[..600] + "…";
-            var line = $"- #{_memory.NumberOf(n.Id)} {title} ({n.CreatedAt:yyyy-MM-dd}): {body.Replace("\n", " ")}";
-            if (budget - line.Length < 0) { sb.AppendLine("- … more notes: use memory list"); break; }
-            sb.AppendLine(line); budget -= line.Length;
+            var r = await _router.CallWithLayerAsync("any", system, [ConversationMessage.FromUser(user)], [], ct);
+            _usage?.Track(r.PromptTokens ?? 0, r.CompletionTokens ?? 0, r.CachedTokens ?? 0, r.ModelName);
+            return r.Text ?? "";
         }
-        return sb.ToString();
+        finally { LlmCallScope.MaxOutputTokens.Value = before; LlmCallScope.OnDelta.Value = prevDelta; }
     }
 
     /// <summary>The loop's client: every call goes to the current router (rebuilt after a config change) on the one layer.</summary>
@@ -463,6 +474,7 @@ public sealed class ConsoleHost
         var reply = await TurnAsync(prompt, cts.Token, printReply: false);
         if (reply is null) return 1;
         Console.WriteLine(reply);
+        await MemoryAutoSave.WhenSavedAsync(_memory, TimeSpan.FromSeconds(60), CancellationToken.None);   // let the analysis land before exit
         return 0;
     }
 
@@ -503,6 +515,7 @@ public sealed class ConsoleHost
             try { await TurnAsync(input, cts.Token, printReply: true); }
             finally { _turnCts = null; }
         }
+        await MemoryAutoSave.WhenSavedAsync(_memory, TimeSpan.FromSeconds(20), CancellationToken.None);
         Log.Info("vanity-agent done");
     }
 
@@ -526,7 +539,7 @@ public sealed class ConsoleHost
             _library = PromptLibrary.Load(_workspace);   // re-read every turn: a persona or skill edited on disk applies at once
             if (_personaName is not null) _persona = _library.Persona(_personaName) ?? _persona;
             var (active, loadable) = SkillsFor(_persona, includePinned: true);
-            _loop.SystemPrompt = SystemPrompt.Build(_workspace, ActiveModel(), _tools.All.Select(t => t.Name), await MemoryBlockAsync(ct),
+            _loop.SystemPrompt = SystemPrompt.Build(_workspace, ActiveModel(), _tools.All.Select(t => t.Name), await MemoryBlockAsync(message, ct),
                 persona: _persona, activeSkills: active, loadableSkills: loadable);
             _streamedThought = 0; _streamKind = null;
             LlmCallScope.OnDelta.Value = OnDelta;
@@ -534,6 +547,7 @@ public sealed class ConsoleHost
             var reply = await _loop.SendAsync(message, ct);
             clock.Stop();
             EndStream();
+            _autoSave?.Handle(message, reply, _loop.LastSteps.ToList(), _workspace);
             if (printReply)
             {
                 Console.WriteLine();
