@@ -37,6 +37,20 @@ public sealed class UsageTracker
         }
     }
 
+    public string Path => _path;
+
+    /// <summary>One month's stored totals, newest month first when <paramref name="month"/> is null.</summary>
+    public IReadOnlyList<(string Month, long Prompt, long Completion, long Cached, long Calls, double CostUsd)> Months()
+    {
+        try
+        {
+            return Load().Months.OrderByDescending(kv => kv.Key)
+                .Select(kv => (kv.Key, kv.Value.Prompt, kv.Value.Completion, kv.Value.Cached, kv.Value.Calls, kv.Value.CostMicro / 1_000_000.0))
+                .ToList();
+        }
+        catch { return []; }
+    }
+
     // Running totals for THIS process, updated synchronously. The file write below is async fire-and-forget, so
     // reading usage.json back cannot give a caller a reliable before/after delta around a unit of work. Every model
     // call in the project funnels through Track, so these two counters are the one place a per-task total can be

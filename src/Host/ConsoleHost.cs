@@ -551,7 +551,7 @@ public sealed class ConsoleHost
                 case "/models": await ListModelsAsync(ct); break;
                 case "/remove": case "/logout": Remove(rest.ElementAtOrDefault(0)); break;
                 case "/reset": case "/clear": case "/new": _loop.Reset(); Dim("  [conversation cleared]"); break;
-                case "/usage": Console.WriteLine(LlmRouter.DescribeUsage()); Dim($"  this process: {_usage.LiveTotal:N0} tokens, {_usage.LiveCached:N0} cached · month calls: {_usage.Calls:N0}"); break;
+                case "/usage": PrintUsageStats(); break;
                 case "/cwd": case "/cd": ChangeWorkspace(rest.Length > 0 ? string.Join(' ', rest) : null); break;
                 case "/tools": foreach (var t in _tools.All.OrderBy(t => t.Name)) Console.WriteLine($"  {t.Name,-16} {FirstLine(t.Description)}"); break;
                 case "/memory": await MemoryCommandAsync(rest, ct); break;
@@ -793,6 +793,22 @@ public sealed class ConsoleHost
         _workspace = full;
         Build();
         Dim("  [workspace: " + _workspace + " · conversation cleared]");
+    }
+
+    private void PrintUsageStats()
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var (calls, p, c, _) = LlmRouter.GetUsageTotals();
+        Console.WriteLine(calls == 0
+            ? "  this session: no model calls yet"
+            : $"  this session: {calls:N0} call(s) · {p:N0} in / {c:N0} out · {_usage.LiveCached:N0} cached");
+        if (calls > 0) Dim(LlmRouter.DescribeUsage());
+        var months = _usage.Months();
+        if (months.Count == 0) { Dim("  this project: nothing recorded yet"); return; }
+        Console.WriteLine("  this project, by month (every session, every model):");
+        foreach (var m in months.Take(6))
+            Console.WriteLine($"    {m.Month}  {m.Calls,6:N0} calls  {m.Prompt,12:N0} in  {m.Completion,10:N0} out  {m.Cached,10:N0} cached   ~${m.CostUsd.ToString("0.00", inv)}");
+        Dim("  cost is a rough list-price estimate per model family; subscription logins are not billed per token. file: " + _usage.Path);
     }
 
     private void SetPersona(string? name)
