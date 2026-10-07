@@ -27,11 +27,11 @@ public static class OAuthTokenRefresher
     // source; when Google refuses the public form, set them in the environment: VANITY_AGENT_GOOGLE_SECRET,
     // VANITY_AGENT_GOOGLE_SECRET_ALT (the Antigravity client) and VANITY_AGENT_GOOGLE_APP_SECRET (the desktop-app client).
     internal const string GoogleClientId        = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-    internal static string GoogleClientSecret    => Environment.GetEnvironmentVariable("VANITY_AGENT_GOOGLE_SECRET") ?? "";
-    internal static string GoogleClientSecretAlt => Environment.GetEnvironmentVariable("VANITY_AGENT_GOOGLE_SECRET_ALT") ?? "";
+    internal static string GoogleClientSecret    => Environment.GetEnvironmentVariable("VANITY_AGENT_GOOGLE_SECRET") ?? VanityAgent.Infra.AgentConfig.Setting("GoogleClientSecret") ?? "";
+    internal static string GoogleClientSecretAlt => Environment.GetEnvironmentVariable("VANITY_AGENT_GOOGLE_SECRET_ALT") ?? VanityAgent.Infra.AgentConfig.Setting("GoogleClientSecretAlt") ?? "";
     // The Antigravity DESKTOP APP's own Google client (Pro tier/catalog). A profile chooses it with OAuthClient="app".
     internal const string AppClientId           = "884354919052-36trc1jjb3tguiac32ov6cod268c5blh.apps.googleusercontent.com";
-    internal static string AppClientSecret       => Environment.GetEnvironmentVariable("VANITY_AGENT_GOOGLE_APP_SECRET") ?? "";
+    internal static string AppClientSecret       => Environment.GetEnvironmentVariable("VANITY_AGENT_GOOGLE_APP_SECRET") ?? VanityAgent.Infra.AgentConfig.Setting("GoogleAppClientSecret") ?? "";
     private static bool  IsAppClient(AiProfile p) => string.Equals(p.OAuthClient, "app", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Refresh only when the token dies within this window — covers request latency + clock skew.</summary>

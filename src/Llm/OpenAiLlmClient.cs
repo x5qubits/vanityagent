@@ -69,7 +69,7 @@ public sealed class SingleCallLlmClient
     /// <summary>Session ID for Cloud Code requests (stable per client instance).</summary>
     private readonly string         _sessionId = Guid.NewGuid().ToString("N");
     /// <summary>Cloud Code base URLs to try (mirrors OmniRoute's ANTIGRAVITY_RUNTIME_BASE_URLS).</summary>
-    private static readonly string[] CloudCodeBaseUrls = [
+    public static readonly string[] CloudCodeBaseUrls = [
         "https://daily-cloudcode-pa.googleapis.com",
         "https://cloudcode-pa.googleapis.com",
     ];

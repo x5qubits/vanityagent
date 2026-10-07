@@ -40,6 +40,7 @@ public sealed class ConsoleHost
         public bool NoMemory;
         public string? Login;
         public string? Persona;
+        public bool Usage;
         public List<string> Skills = [];
         public List<string> Deny = [];
         public List<string> Prompt = [];
@@ -76,6 +77,7 @@ public sealed class ConsoleHost
             }
             if (!await host.EnsureProfilesAsync()) return 2;
             host.Build();
+            if (o.Usage) { await host.PrintUsageStatsAsync(CancellationToken.None); return 0; }
 
             string? prompt = o.Prompt.Count > 0 ? string.Join(" ", o.Prompt) : null;
             if (prompt is null && Console.IsInputRedirected)
@@ -118,6 +120,7 @@ public sealed class ConsoleHost
                 case "--deny": o.Deny.Add(Next()); break;
                 case "--login": o.Login = Next(); break;
                 case "--persona": o.Persona = Next(); break;
+                case "--usage": o.Usage = true; break;
                 case "--skill": o.Skills.Add(Next()); break;
                 case "-p": case "--print": if (i + 1 < args.Length && !args[i + 1].StartsWith('-')) o.Prompt.Add(Next()); break;
                 default:
@@ -147,6 +150,7 @@ public sealed class ConsoleHost
               --deny <path>          a folder the agent must not touch (repeatable)
               --no-memory            do not load or save project memory notes
               --login <provider>     sign in and exit: openai | grok | antigravity | anthropic
+              --usage                show what is left on each login (weekly / five-hour limits) and what this project spent, then exit
               --persona <name>       run as a persona from .vanity-agent/personas or ~/.vanity-agent/personas
               --skill <name>         pin a skill for the session (repeatable)
               -v, --verbose          echo the diagnostic log to the console
@@ -551,7 +555,7 @@ public sealed class ConsoleHost
                 case "/models": await ListModelsAsync(ct); break;
                 case "/remove": case "/logout": Remove(rest.ElementAtOrDefault(0)); break;
                 case "/reset": case "/clear": case "/new": _loop.Reset(); Dim("  [conversation cleared]"); break;
-                case "/usage": PrintUsageStats(); break;
+                case "/usage": await PrintUsageStatsAsync(ct); break;
                 case "/cwd": case "/cd": ChangeWorkspace(rest.Length > 0 ? string.Join(' ', rest) : null); break;
                 case "/tools": foreach (var t in _tools.All.OrderBy(t => t.Name)) Console.WriteLine($"  {t.Name,-16} {FirstLine(t.Description)}"); break;
                 case "/memory": await MemoryCommandAsync(rest, ct); break;
@@ -563,7 +567,9 @@ public sealed class ConsoleHost
                 case "/project": Console.WriteLine("  " + PromptLibrary.ProjectDir(_workspace) + (PromptLibrary.HasProjectDir(_workspace) ? "" : "  (not created yet; /init creates it)")); Console.WriteLine("  global personas/skills: " + AgentConfig.Dir); break;
                 case "/sandbox": VanityPathHelper.Sandbox = rest.ElementAtOrDefault(0) is not "off"; Dim("  [sandbox " + (VanityPathHelper.Sandbox ? "on" : "off") + "]"); break;
                 case "/verbose": Log.Verbose = rest.ElementAtOrDefault(0) is not "off"; Dim("  [verbose " + (Log.Verbose ? "on" : "off") + "]"); break;
-                case "/config": Console.WriteLine("  " + AgentConfig.ConfigFile); Console.WriteLine("  " + AgentConfig.ProjectDir(_workspace)); break;
+                case "/config": Console.WriteLine("  " + AgentConfig.ConfigFile); Console.WriteLine("  " + AgentConfig.ProjectDir(_workspace)); foreach (var kv in AgentConfig.Settings) Console.WriteLine($"  setting {kv.Key} = {Mask(kv.Value)}"); break;
+                case "/set": case "/secret": await SetSettingAsync(rest, ct); break;
+                case "/tune": Tune(rest); break;
                 default: Red($"  unknown command {cmd}; /help lists them"); break;
             }
         }
@@ -580,6 +586,9 @@ public sealed class ConsoleHost
               /profiles                          list the configured profiles; the first usable one answers
               /use <name>                        make a profile the active one
               /model <model>                     set the model of the active profile
+              /tune [setting value]              model settings of the active profile: temperature, top_p, max_tokens, thinking on|off,
+                                                 timeout <s>, ctx <tokens>; no arguments shows them. Gemini/Antigravity thinking depth is
+                                                 the model name's suffix (-low, -medium, -high), so /model picks it there
               /models                            list the models the active profile can use (asked from the provider)
               /remove <name>                     delete a profile (and its stored tokens)
               /reset                             clear the conversation
@@ -593,7 +602,9 @@ public sealed class ConsoleHost
               /skills, /skill <name>             list skills; pin or unpin a skill for this session
               /sandbox on|off                    confine the file tools to the working directory
               /verbose on|off                    echo the diagnostic log
-              /config                            where the config and project state live
+              /config                            where the config and project state live, and the settings stored there
+              /set <name> [value]                store a machine-local setting in config.json (asked hidden when the value is omitted);
+                                                 GoogleClientSecret = the Antigravity client secret Google needs to refresh the login
               /quit                              exit
             """);
     }
@@ -795,13 +806,48 @@ public sealed class ConsoleHost
         Dim("  [workspace: " + _workspace + " · conversation cleared]");
     }
 
-    private void PrintUsageStats()
+    internal async Task PrintUsageStatsAsync(CancellationToken ct)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        var (calls, p, c, _) = LlmRouter.GetUsageTotals();
+
+        // 1. What is LEFT on each login: the provider's own weekly / five-hour pools, the same rows its app shows.
+        var profiles = AgentConfig.Load().Profiles.Where(Usable).ToList();
+        foreach (var p in profiles)
+        {
+            var isLogin = OAuthTokenRefresher.UsesOAuth(p);
+            if (!isLogin && !p.Provider.Equals("deepseek", StringComparison.OrdinalIgnoreCase) && !p.Provider.Equals("oneprovider", StringComparison.OrdinalIgnoreCase))
+            {
+                Dim($"  {p.Name} ({p.Provider}, api key): {AiUsageProbe.CreditsNote(p.Provider)}");
+                continue;
+            }
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.Write($"  {p.Name} ({p.Provider}{(string.IsNullOrEmpty(p.OAuthAccountId) ? "" : ", " + p.OAuthAccountId)})");
+            Console.ResetColor();
+            AiUsageProbe.Usage? u = null;
+            try { u = await AiUsageProbe.ProbeAsync(p, 0, includeRaw: false, ct); } catch { }
+            if (u is null) { Dim("  · limits unavailable (the provider did not answer the usage call; the token may need /login again)"); continue; }
+            Console.WriteLine(string.IsNullOrWhiteSpace(u.plan) ? "" : $" · plan: {u.plan}");
+            if (u.balance is not null)
+                Console.WriteLine($"    balance: {u.balance.remaining.ToString("0.00", inv)} {u.balance.unit} left" + (u.balance.limit is { } lim ? $" of {lim.ToString("0.00", inv)}" : ""));
+            foreach (var pool in u.pools)
+            {
+                if (pool.label.Length > 0) Console.WriteLine("    " + pool.label);
+                if (pool.buckets.Count > 0)
+                    foreach (var b in pool.buckets)
+                        PrintLimit(b.label, b.remaining, b.reset, b.description);
+                else
+                {
+                    if (pool.weeklyRemaining is { } w) PrintLimit("Weekly limit remaining", w, pool.weeklyReset, null);
+                    if (pool.fiveHourRemaining is { } f) PrintLimit("Five hour limit remaining", f, pool.fiveHourReset, null);
+                }
+            }
+        }
+
+        // 2. What this agent spent: the current process, then the project's stored months.
+        var (calls, pt, ctok, _) = LlmRouter.GetUsageTotals();
         Console.WriteLine(calls == 0
             ? "  this session: no model calls yet"
-            : $"  this session: {calls:N0} call(s) · {p:N0} in / {c:N0} out · {_usage.LiveCached:N0} cached");
+            : $"  this session: {calls:N0} call(s) · {pt:N0} in / {ctok:N0} out · {_usage.LiveCached:N0} cached");
         if (calls > 0) Dim(LlmRouter.DescribeUsage());
         var months = _usage.Months();
         if (months.Count == 0) { Dim("  this project: nothing recorded yet"); return; }
@@ -809,6 +855,84 @@ public sealed class ConsoleHost
         foreach (var m in months.Take(6))
             Console.WriteLine($"    {m.Month}  {m.Calls,6:N0} calls  {m.Prompt,12:N0} in  {m.Completion,10:N0} out  {m.Cached,10:N0} cached   ~${m.CostUsd.ToString("0.00", inv)}");
         Dim("  cost is a rough list-price estimate per model family; subscription logins are not billed per token. file: " + _usage.Path);
+    }
+
+    private static void PrintLimit(string label, double remaining, string? reset, string? description)
+    {
+        Console.ForegroundColor = remaining <= 10 ? ConsoleColor.Red : remaining <= 30 ? ConsoleColor.Yellow : ConsoleColor.Green;
+        Console.Write($"      {label,-28} {remaining,4:0}%");
+        Console.ResetColor();
+        var when = ResetHint(reset);
+        if (!string.IsNullOrEmpty(description)) Dim("   " + description);
+        else if (when.Length > 0) Dim("   resets " + when);
+        else Console.WriteLine();
+    }
+
+    private static string ResetHint(string? iso)
+    {
+        if (string.IsNullOrWhiteSpace(iso) || !DateTimeOffset.TryParse(iso, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var at)) return "";
+        var left = at - DateTimeOffset.UtcNow;
+        if (left <= TimeSpan.Zero) return "now";
+        if (left.TotalDays >= 1) return $"in {(int)left.TotalDays} day{((int)left.TotalDays == 1 ? "" : "s")}, {left.Hours} hour{(left.Hours == 1 ? "" : "s")}";
+        if (left.TotalHours >= 1) return $"in {(int)left.TotalHours} hour{((int)left.TotalHours == 1 ? "" : "s")}, {left.Minutes} min";
+        return $"in {left.Minutes} min";
+    }
+
+    private async Task SetSettingAsync(string[] rest, CancellationToken ct)
+    {
+        var key = rest.ElementAtOrDefault(0)?.Trim();
+        if (string.IsNullOrEmpty(key))
+        {
+            Console.WriteLine("  /set <name> [value]   known names: GoogleClientSecret, GoogleClientSecretAlt, GoogleAppClientSecret");
+            foreach (var kv in AgentConfig.Settings) Console.WriteLine($"    {kv.Key} = {Mask(kv.Value)}");
+            return;
+        }
+        if (key.Equals("google", StringComparison.OrdinalIgnoreCase)) key = "GoogleClientSecret";
+        var value = rest.Length > 1 ? string.Join(' ', rest.Skip(1)).Trim() : await ReadSecretAsync($"  {key}: ", ct);
+        AgentConfig.SetSetting(key, value);
+        Dim(string.IsNullOrEmpty(value) ? $"  [{key} removed]" : $"  [{key} stored in {AgentConfig.ConfigFile}]");
+    }
+
+    /// <summary>Model settings of the active profile, persisted: temperature, top_p, max_tokens, thinking, timeout, ctx.</summary>
+    private void Tune(string[] rest)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var opts = AgentConfig.Load();
+        var active = ActiveProfile();
+        var p = active is null ? null : opts.Profiles.FirstOrDefault(x => x.Name.Equals(active.Name, StringComparison.OrdinalIgnoreCase));
+        if (p is null) { Red("  no active profile"); return; }
+        if (rest.Length == 0)
+        {
+            Console.WriteLine($"  {p.Name} ({p.Provider} / {p.Models.FirstOrDefault()})");
+            Console.WriteLine($"    temperature  {(p.Temperature is { } t ? t.ToString(inv) : "provider default")}");
+            Console.WriteLine($"    top_p        {(p.TopP is { } tp ? tp.ToString(inv) : "provider default")}");
+            Console.WriteLine($"    max_tokens   {(p.MaxTokens > 0 ? p.MaxTokens.ToString(inv) : "default (16000 chat, 32000 Gemini)")}");
+            Console.WriteLine($"    thinking     {(p.DisableThinking ? "off" : "on (provider default)")}");
+            Console.WriteLine($"    timeout      {p.RequestTimeoutMs / 1000}s");
+            Console.WriteLine($"    ctx          {(p.NumCtx > 0 ? p.NumCtx.ToString(inv) + " (Ollama num_ctx)" : "model default")}");
+            Dim("  /tune temperature 0.2 · /tune top_p 0.9 · /tune max_tokens 8000 · /tune thinking off · /tune timeout 120 · /tune ctx 32768 · /tune reset");
+            Dim("  thinking depth on Gemini/Antigravity is the model suffix: /model gemini-3.8-flash-low|medium|high");
+            return;
+        }
+        var key = rest[0].ToLowerInvariant().Replace("-", "_");
+        var val = rest.ElementAtOrDefault(1)?.Trim().ToLowerInvariant() ?? "";
+        double D() => double.TryParse(val, System.Globalization.NumberStyles.Float, inv, out var d) ? d : throw new ArgumentException($"'{val}' is not a number");
+        int I() => int.TryParse(val, out var i) ? i : throw new ArgumentException($"'{val}' is not a whole number");
+        bool Off() => val is "off" or "false" or "0" or "no" or "none";
+        switch (key)
+        {
+            case "temperature": case "temp": p.Temperature = val is "" or "default" or "reset" ? null : Math.Clamp(D(), 0, 2); break;
+            case "top_p": case "topp": p.TopP = val is "" or "default" or "reset" ? null : Math.Clamp(D(), 0, 1); break;
+            case "max_tokens": case "maxtokens": case "max": p.MaxTokens = val is "" or "default" or "reset" ? 0 : Math.Max(256, I()); break;
+            case "thinking": case "reasoning": p.DisableThinking = Off(); break;
+            case "timeout": p.RequestTimeoutMs = Math.Max(10, I()) * 1000; break;
+            case "ctx": case "num_ctx": case "context": p.NumCtx = val is "" or "default" or "reset" ? 0 : Math.Max(1024, I()); break;
+            case "reset": p.Temperature = null; p.TopP = null; p.MaxTokens = 0; p.DisableThinking = false; p.NumCtx = 0; break;
+            default: Red("  unknown setting; /tune without arguments lists them"); return;
+        }
+        AgentConfig.Save(opts);
+        Rebuild();
+        Tune([]);
     }
 
     private void SetPersona(string? name)

@@ -88,6 +88,11 @@ public static class AgentConfig
                 if (root.TryGetProperty("Profiles", out var profiles) && profiles.ValueKind == JsonValueKind.Array)
                     foreach (var p in profiles.EnumerateArray())
                         opts.Profiles.Add(AiOptions.ParseProfile(p));
+                var settings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (root.TryGetProperty("Settings", out var st) && st.ValueKind == JsonValueKind.Object)
+                    foreach (var kv in st.EnumerateObject())
+                        if (kv.Value.ValueKind == JsonValueKind.String) settings[kv.Name] = kv.Value.GetString() ?? "";
+                _settings = settings;
                 return opts;
             }
             catch (Exception ex)
@@ -104,7 +109,8 @@ public static class AgentConfig
         {
             Directory.CreateDirectory(Dir);
             var tmp = ConfigFile + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(new ConfigFileShape { Profiles = options.Profiles }, Json), new UTF8Encoding(false));
+            var shape = new ConfigFileShape { Profiles = options.Profiles, Settings = _settings.Count > 0 ? new Dictionary<string, string>(_settings) : null };
+            File.WriteAllText(tmp, JsonSerializer.Serialize(shape, Json), new UTF8Encoding(false));
             File.Move(tmp, ConfigFile, overwrite: true);
             try { if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(ConfigFile, UnixFileMode.UserRead | UnixFileMode.UserWrite); } catch { }
         }
@@ -114,7 +120,37 @@ public static class AgentConfig
     {
         public string DecisionMode { get; set; } = "llm";
         public List<AiProfile> Profiles { get; set; } = [];
+        public Dictionary<string, string>? Settings { get; set; }
     }
+
+    // ── settings: small named values that belong to this machine, never to a repository ───────────────────────────
+
+    private static Dictionary<string, string> _settings = new(StringComparer.OrdinalIgnoreCase);
+    private static bool _settingsLoaded;
+
+    /// <summary>A value from the "Settings" object of config.json (e.g. GoogleClientSecret), or null.</summary>
+    public static string? Setting(string key)
+    {
+        lock (Gate)
+        {
+            if (!_settingsLoaded) { Load(); _settingsLoaded = true; }
+            return _settings.TryGetValue(key, out var v) && v.Length > 0 ? v : null;
+        }
+    }
+
+    /// <summary>Store a value in config.json's "Settings" object (an empty value removes it).</summary>
+    public static void SetSetting(string key, string? value)
+    {
+        var opts = Load();
+        lock (Gate)
+        {
+            if (string.IsNullOrEmpty(value)) _settings.Remove(key); else _settings[key] = value;
+            _settingsLoaded = true;
+        }
+        Save(opts);
+    }
+
+    public static IReadOnlyDictionary<string, string> Settings { get { lock (Gate) { if (!_settingsLoaded) { Load(); _settingsLoaded = true; } return new Dictionary<string, string>(_settings); } } }
 
     /// <summary>Add or replace a profile by name. A new profile goes first, so it becomes the one the router asks
     /// first; an existing one keeps its place.</summary>

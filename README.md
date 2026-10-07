@@ -71,6 +71,14 @@ repository**. Whether a provider accepts a subscription token outside its own to
 subject to its terms; an API key is always the documented path. Tokens refresh themselves and are stored only on
 your machine.
 
+One exception needs a value from you: Google refuses to refresh the Antigravity login without that client's
+installed-app secret (the one the Antigravity app itself carries). Store it once with `/set GoogleClientSecret`
+(kept in `~/.vanity-agent/config.json`) or put it in `VANITY_AGENT_GOOGLE_SECRET`; without it the login works for
+about an hour and then fails with "client_secret is missing".
+
+Model settings per profile (`/tune`): temperature, top_p, max_tokens, thinking on/off, request timeout, Ollama
+context size. On Gemini and Antigravity the thinking depth is part of the model name (`-low`, `-medium`, `-high`).
+
 Every profile is a fallback for the others. If the first one fails (quota, outage, rate limit, retired model) the
 router moves to the next profile and model, parks the failing pair for a while and comes back to it later.
 
@@ -149,12 +157,15 @@ vanity-agent --sandbox --max-turns 20 "list the TODO comments"
 | `/key [provider] [key] [model]` | add a profile with an API key (interactive when arguments are missing) |
 | `/profiles`, `/use <name>` | list profiles; make one the active one (the rest are fallbacks) |
 | `/model <model>`, `/models` | set the model; list the models your credentials can use (asked from the provider) |
+| `/tune [setting value]` | temperature, top_p, max_tokens, thinking on/off, timeout, ctx of the active profile |
+| `/set <name> [value]` | a machine-local setting in config.json (e.g. `GoogleClientSecret`) |
 | `/remove <name>` | delete a profile and its stored tokens |
 | `/init`, `/project` | create the `.vanity-agent/` project directory; show where things live |
 | `/personas`, `/persona <name\|off>` | list personas; switch persona (the conversation is kept) |
 | `/skills`, `/skill <name>` | list skills; pin or unpin one for the session |
 | `/memory [list\|add <text>\|delete <n>]` | the project's notes |
-| `/reset`, `/usage`, `/cwd [dir]`, `/tools`, `/config` | housekeeping |
+| `/usage` | what is left on each login (the provider's own weekly and five-hour limits, plan, balance) and what this project spent, by month; also `vanity-agent --usage` |
+| `/reset`, `/cwd [dir]`, `/tools`, `/config` | housekeeping |
 | `/sandbox on\|off`, `/verbose on\|off` | toggles |
 | `/quit` | exit |
 
