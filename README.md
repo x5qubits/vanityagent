@@ -45,6 +45,7 @@ tools, same skills, same project memory, whichever model is behind it.
 | Local models (Ollama) | yes | no | no | no | yes | yes |
 | Skills / playbooks | markdown, per project or global | yes | AGENTS.md | yes | yes | no |
 | Personas (roles with their own tools) | yes | sub-agents | no | no | agents | no |
+| Image generation, browser screenshots, desktop control | yes | no / partly / no | no | no | no | no |
 | Project memory between sessions | yes | yes | no | yes | partly | no |
 | Live view of the model's reasoning | yes | partly | no | no | yes | no |
 | Runtime | one .NET 8 binary | Node.js | Rust/Node | Node.js | Go/TS | Python |
@@ -166,7 +167,8 @@ Ctrl+C stops the running task; at the prompt it exits.
 | Files | read any file (text with line numbers, images, PDFs, Jupyter notebooks), create files, exact-string edits in batches, several files in one call |
 | Search | `grep` with ripgrep semantics (regex, globs, file types, context, counts) and `glob`, both newest-first and capped so results never flood the context |
 | Shell | a persistent `bash` session (Git Bash on Windows): state, exports and the working directory persist; timeouts, output capping, child-process cleanup |
-| Web | `web_fetch` turns a page into readable text with links and headings, downloads images and PDFs; `web_search` via a local headless Edge/Chrome, DuckDuckGo fallback |
+| Web | `web_fetch` turns a page into readable text with links and headings, downloads images and PDFs; `web_search` via a local headless Edge/Chrome, DuckDuckGo fallback; `page_view` screenshots any page or local HTML file and checks its layout |
+| Images and desktop | `image_gen` makes pictures with your OpenAI, ChatGPT or Antigravity account; `computer` takes screenshots and drives the mouse and keyboard for GUI-only tasks (Windows) |
 | Memory | project notes saved between sessions: the agent searches, saves and deletes them; you edit them with `/memory` |
 | Sub-agents | `agent` runs independent sub-tasks in parallel in fresh contexts, optionally as a persona, and reports back |
 | Skills and personas | markdown playbooks loaded on demand or pinned; roles with their own tools and turn budget |
@@ -178,7 +180,14 @@ Ctrl+C stops the running task; at the prompt it exits.
 ### Tools the model gets
 
 `bash`, `read_file`, `write_file`, `write_files`, `edit_file`, `grep`, `glob`, `web_fetch`, `web_search`,
-`memory`, `agent`, `skill_view`, `task_scratchpad`, `date_time`, `list_tools`.
+`image_gen`, `page_view`, `computer`, `memory`, `agent`, `skill_view`, `task_scratchpad`, `date_time`, `list_tools`.
+
+- `image_gen` generates a picture to a `.webp` at exact pixel size, or regenerates an existing one from a
+  reference, through an OpenAI key or ChatGPT login, an Antigravity login, or an Alibaba key.
+- `page_view` (Windows) renders a URL or a local HTML file in headless Edge/Chrome and returns the screenshot
+  plus layout probes (horizontal overflow, clipped text, console errors), with JS injection, scrolling and clicks.
+- `computer` (Windows) sees and controls the desktop: screenshots with the cursor marked, zoom, click, type,
+  scroll, drag, find a control by its accessible name. For anything with no command-line path.
 
 ## Project directory, skills and personas
 

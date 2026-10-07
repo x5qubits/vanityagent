@@ -269,6 +269,12 @@ public sealed class ConsoleHost
         tools.Register(new GlobTool(_workspace));
         tools.Register(new WebFetchTool(_workspace));
         tools.Register(new WebSearchTool());
+        tools.Register(new ImageGenTool(_workspace, () => _opts));
+        if (OperatingSystem.IsWindows())
+        {
+            tools.Register(new PageViewTool(_workspace));   // headless Edge/Chrome screenshots + DOM probes
+            tools.Register(new ComputerTool());             // screen capture and mouse/keyboard control
+        }
         tools.Register(new DateTimeTool());
         tools.Register(new TaskScratchpadTool());
         if (!_o.NoMemory) tools.Register(new MemoryTool(_memory));

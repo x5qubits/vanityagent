@@ -18,6 +18,10 @@
   <ItemGroup>
     <!-- PDF text extraction for read_file (pure managed, no native dependency). -->
     <PackageReference Include="PdfPig" Version="0.1.16" />
+    <!-- image_gen (encode/resize), page_view (screenshot stitching). -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="2.1.11" />
+    <!-- computer and page_view screenshots (Windows only; the tools are registered on Windows only). -->
+    <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>

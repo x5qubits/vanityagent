@@ -104,7 +104,10 @@ public static class SystemPrompt
         "- task_scratchpad keeps your working plan for a long task; memory stores facts worth keeping for later sessions in this project " +
         "(paths, commands that work, decisions). Save a note when you learn something the next session would otherwise rediscover.\n" +
         "- agent delegates a self-contained sub-task to a fresh agent with the same tools and returns its report; use it for broad " +
-        "searches or independent parallel work, not for the main task.";
+        "searches or independent parallel work, not for the main task.\n" +
+        "- page_view renders a URL or a local HTML file in a headless browser and shows you the screenshot (plus layout checks); " +
+        "image_gen generates a picture to a .webp file; computer sees and controls the desktop (screenshot first, then one action at a " +
+        "time) for anything with no command-line path. These exist only where the host provides them.";
 
     public static List<(string File, string Text)> ProjectInstructions(string workspace)
     {
