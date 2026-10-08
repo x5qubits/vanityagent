@@ -88,8 +88,8 @@ Requirements: the [.NET 8 SDK](https://dotnet.microsoft.com/download) to build (
 give the published binary to); on Windows, [Git for Windows](https://git-scm.com/download/win) for the `bash` tool.
 
 ```bash
-git clone https://github.com/x5qubits/vanity-agent.git
-cd vanity-agent
+git clone https://github.com/x5qubits/vanityagent.git
+cd vanityagent
 dotnet build -c Release
 dotnet run -c Release          # first run opens the setup menu
 ```
