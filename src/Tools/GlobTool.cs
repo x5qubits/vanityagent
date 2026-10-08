@@ -5,7 +5,7 @@ using VanityAgent.Infra;
 
 namespace VanityAgent.Tools;
 
-/// <summary>File search by glob, ported from the Claude Code tool port (VaniyTools GlobTool): case-insensitive,
+/// <summary>File search by glob: case-insensitive,
 /// files only, dot entries and the harness's own folder skipped, sorted by modification time (newest first), the
 /// first 100 returned with a note when more exist. Paths come back relative to the workspace.</summary>
 public sealed class GlobTool : ITool

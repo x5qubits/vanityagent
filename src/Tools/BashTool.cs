@@ -11,7 +11,7 @@ namespace VanityAgent.Tools;
 public sealed class BashTool : ITool
 {
 
-    // Claude Code's cap. At 12,000 a grep over a site cut the decisive line (character 16,000 of 20,000) out of the
+    // Output cap. At 12,000 a grep over a site cut the decisive line (character 16,000 of 20,000) out of the
     // middle and the model searched 30 more times for what it had already found (2026-09-21).
     private static readonly int MaxOutputChars = 30_000;
 
@@ -91,7 +91,7 @@ public sealed class BashTool : ITool
         return combined.Length <= MaxOutputChars ? combined : PersistOversized(combined);
     }
 
-    // Claude Code's behaviour for oversized output: nothing is cut. The full text is saved to a file the read tool can
+    // Oversized output: nothing is cut. The full text is saved to a file the read tool can
     // open in slices, and the model gets the first 2KB as a preview plus the path. Head+tail truncation dropped the
     // middle for good, and a grep hit or the one failing build line was often exactly there.
     private const int PreviewChars = 2048;

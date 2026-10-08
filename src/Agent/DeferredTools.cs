@@ -6,7 +6,7 @@ namespace VanityAgent.Agent;
 /// <summary>Tools whose schemas are not sent on every call. The heavy ones (desktop control, page rendering, image
 /// generation) cost thousands of prompt tokens per turn and are rarely needed; they appear in the system prompt as
 /// one line each under "More tools" and enter the schema through <c>load_tools</c> for the rest of the session.
-/// Ported from the original agent's DeferredTools (the same idea as Claude Code's ToolSearch).</summary>
+/// Ported from the original agent's DeferredTools (schemas on demand).</summary>
 public sealed class DeferredTools
 {
     public const string LoadToolsName = "load_tools";

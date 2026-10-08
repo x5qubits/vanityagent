@@ -34,7 +34,7 @@ public sealed class ShellHandle
 
 public sealed record ShellExecResult(string Stdout, string Stderr, int Code, bool Interrupted, bool TimedOut = false);
 
-/// <summary>Port of Claude Code's PersistentShell: one long-lived bash process per session.
+/// <summary>One long-lived bash process per session.
 /// Commands run via eval with stdout/stderr redirected to temp files; completion detected by polling the status file.
 /// Shell state (cwd, variables, functions) persists between commands.</summary>
 public sealed class PersistentShell

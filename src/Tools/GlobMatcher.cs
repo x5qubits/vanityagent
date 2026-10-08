@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace VanityAgent.Tools;
 
 /// <summary>Translates glob patterns (*, ?, **, {a,b}, [set]) into anchored regexes over '/'-separated paths.
-/// Ported from the Claude Code tool port (VaniyTools) - the `grep` and `glob` tools filter files with it.</summary>
+/// The the `grep` and `glob` tools filter files with it.</summary>
 internal static class GlobMatcher
 {
     public static Regex ToRegex(string glob, bool caseInsensitive = true)

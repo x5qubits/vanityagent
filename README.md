@@ -1,7 +1,7 @@
 # vanity-agent: open-source AI coding agent for your terminal
 
 **One CLI agent for every model: ChatGPT, Claude, Gemini, Grok, DeepSeek, Ollama and any OpenAI-compatible API.**
-Sign in with the subscriptions you already pay for or paste an API key, and get a Claude Code-style agent that
+Sign in with the subscriptions you already pay for or paste an API key, and get a terminal agent that
 reads and edits files, runs commands, searches the web, remembers your project and delegates to sub-agents.
 Single .NET 8 binary for Windows, Linux and macOS. No cloud account of ours, no telemetry, no vendor lock-in.
 
@@ -29,27 +29,27 @@ Agent: The missing `using System.Text.Json;` was the cause. Build and 34 tests p
 
 ## Why another coding agent?
 
-Claude Code only talks to Claude. Codex CLI only talks to OpenAI. Gemini CLI only talks to Gemini. Each wants its
-own login, its own config, its own `AGENTS.md`/`CLAUDE.md`, and you learn three tools to use three subscriptions.
+Every vendor ships a terminal agent that talks to its own models only: Codex CLI to OpenAI, Gemini CLI to Gemini,
+Anthropic's to Claude. Each wants its own login, its own config, its own instructions file, and you learn three
+tools to use three subscriptions.
 
 vanity-agent is the one terminal agent that uses all of them, with **automatic failover**: when your ChatGPT plan
 hits its limit, the next profile (Gemini, a Claude key, a local Ollama model) answers the same conversation. Same
 tools, same skills, same project memory, whichever model is behind it.
 
-| | vanity-agent | Claude Code | Codex CLI | Gemini CLI | OpenCode | Aider |
-|---|---|---|---|---|---|---|
-| Models | OpenAI, Anthropic, Gemini, Grok, DeepSeek, Mistral, Groq, OpenRouter, Ollama, any OpenAI-compatible | Anthropic | OpenAI | Gemini | many | many (API keys) |
-| Use a ChatGPT subscription | yes (device-code login) | no | yes | no | yes | no |
-| Use a Gemini / Antigravity subscription | yes (Google login) | no | no | yes | partly | no |
-| Failover across providers in one chat | yes | no | no | no | no | no |
-| Local models (Ollama) | yes | no | no | no | yes | yes |
-| Skills / playbooks | markdown, per project or global | yes | AGENTS.md | yes | yes | no |
-| Personas (roles with their own tools) | yes | sub-agents | no | no | agents | no |
-| Image generation, browser screenshots, desktop control | yes | no / partly / no | no | no | no | no |
-| Project memory between sessions | yes | yes | no | yes | partly | no |
-| Live view of the model's reasoning | yes | partly | no | no | yes | no |
-| Runtime | one .NET 8 binary | Node.js | Rust/Node | Node.js | Go/TS | Python |
-| License / source | open source, this repo | proprietary | open | open | open | open |
+| | vanityagent | Codex CLI | Gemini CLI | OpenCode | Aider |
+|---|---|---|---|---|---|
+| Models | OpenAI, Anthropic, Gemini, Grok, DeepSeek, Mistral, Groq, OpenRouter, Ollama, any OpenAI-compatible | OpenAI | Gemini | many | many (API keys) |
+| Use a ChatGPT subscription | yes (device-code login) | yes | no | yes | no |
+| Use a Gemini / Antigravity subscription | yes (Google login) | no | yes | partly | no |
+| Failover across providers in one chat | yes | no | no | no | no |
+| Local models (Ollama) | yes | no | no | yes | yes |
+| Skills / playbooks | markdown, per project or global | AGENTS.md | yes | yes | no |
+| Personas (roles with their own tools) | yes | no | no | agents | no |
+| Image generation, browser screenshots, desktop control | yes | no | no | no | no |
+| Smart project memory between sessions | yes, automatic | no | yes | partly | no |
+| Live view of the model's reasoning | yes | no | no | yes | no |
+| Runtime | one .NET 8 binary | Rust/Node | Node.js | Go/TS | Python |
 
 The comparison describes the tools as published in 2026; check each project for its current features.
 
@@ -213,7 +213,7 @@ Ctrl+C stops the running task; at the prompt it exits.
 ```
 
 An `AGENTS.md` (or `VANITY.md`) in the working directory works as instructions too, with or without the folder,
-so a project set up for Codex CLI or Claude Code is understood as is. The same `personas/` and `skills/` folders
+so a project set up for Codex CLI is understood as is. The same `personas/` and `skills/` folders
 under `~/.vanity-agent/` apply to every workspace; a project file with the same name overrides the global one.
 
 A persona: frontmatter plus a body that replaces the agent's identity. The working rules and tool mechanics stay.
@@ -255,14 +255,14 @@ code, and the agent talks to the same Codex backend that Codex CLI uses.
 **Does it work with Claude?** Yes, with an Anthropic API key (native Messages API with prompt caching) or a pasted
 token. It also reaches Claude models through Google Antigravity's Cloud Code backend after `/login antigravity`.
 
-**Is it a Claude Code alternative?** It covers the same job (an agent in your terminal that edits code, runs
-commands and tests, follows project instructions and skills) and adds the part Claude Code lacks: any model, any
-provider, with failover between them.
+**How is it different from the vendors' own terminal agents?** It does the same job (an agent in your terminal that
+edits code, runs commands and tests, follows project instructions and skills) with any model and any provider,
+switching between them automatically when one is out of quota or down.
 
 **Can I run it fully offline / local?** With Ollama, yes: `/key ollama`, pick a model, no key, no network.
 
-**Does it read my `AGENTS.md` or `CLAUDE.md`?** `AGENTS.md`, `VANITY.md` and `.vanity-agent/instructions.md` are
-read automatically. Rename or copy a `CLAUDE.md` to one of those.
+**Does it read my `AGENTS.md`?** `AGENTS.md`, `VANITY.md` and `.vanity-agent/instructions.md` are read
+automatically; copy any other agent's instructions file to one of those names.
 
 **Where are my keys stored?** In `~/.vanity-agent/config.json` on your machine only, created with user-only
 permissions on Unix. Nothing leaves your machine except the requests to the provider you chose.

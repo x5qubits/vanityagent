@@ -6,7 +6,7 @@ using VanityAgent.Infra;
 
 namespace VanityAgent.Tools;
 
-/// <summary>Content search with ripgrep conventions, ported from the Claude Code tool port (VaniyTools GrepTool).
+/// <summary>Content search with ripgrep conventions.
 /// Why a tool and not `bash grep -rn`: a shell grep over a site returned 20,000 characters with the decisive line at
 /// character 16,000, past the shell output cap, so the model never saw it and searched 30 more times with other
 /// words (2026-09-21). This returns compact, capped, ordered results (newest file first), excludes the harness's
